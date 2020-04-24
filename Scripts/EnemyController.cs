@@ -1,28 +1,65 @@
 ﻿using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
+using UnityEngine.Events;
 
 public class EnemyController : MonoBehaviour
 {
-    public float MoveSpeed;
-    bool IsLeftSide = true;
-    public float HP = 100;
-    bool IsHurt = false;
-    bool IsKnockBack = false;
-
+    /* Added Component */
     Animator EnemyAnimator;
     Rigidbody2D RigidBody;
     SpriteRenderer Renderer;
 
-    Color AlphaA = Color.red;
-    Color AlphaB = new Color(1, 1, 1, 1);
+    /* Movement Power */
+    public float MoveSpeed;
     public float KnockBackPower;
 
-    void Start()
+    /* State Bool */
+    bool IsLeftSide;
+    bool IsKnockBack = false;
+    bool IsDropItem = false;
+
+    /* Status */
+    public int HP = 100;
+    public int Damage = 10;
+
+    /* Alpha Blink Value */
+    Color AlphaA = Color.red;
+    Color AlphaB = new Color(1,1,1,1);
+
+    /* Code */
+    public int EnemyCode;
+    public int Exp;
+    public int Gold;
+
+    /* Drop Item Prefab */
+    public GameObject Items;
+
+    /* Monster Event */
+    //public delegate void MonsterDead();
+    //public static event MonsterDead Dead;
+
+    public RespawnManager RespawnManagerInstance;
+
+    public GameObject HudImage;
+    
+    void Awake()
     {
         EnemyAnimator = GetComponent<Animator>();
         RigidBody = GetComponent<Rigidbody2D>();
         Renderer = GetComponent<SpriteRenderer>();
+
+        if (Random.Range(0, 2) == 1)
+        {
+            IsLeftSide = true;
+        }
+        else
+        {
+            IsLeftSide = false;
+            transform.eulerAngles = new Vector3(0, 180, 0);
+        }
+
+        StartCoroutine(CommonFunction.FadeIn(gameObject));
     }
 
     void Update()
@@ -30,11 +67,20 @@ public class EnemyController : MonoBehaviour
         if(!IsKnockBack)
         {
             transform.Translate(Vector2.left * MoveSpeed * Time.deltaTime);
+
             EnemyAnimator.SetBool("IsMoving", true);
         }
         else
         {
             EnemyAnimator.SetBool("IsMoving", false);
+        }
+    }
+
+    private void OnTriggerStay2D(Collider2D Collision)
+    {
+        if (Collision.tag == "Player")
+        {
+            Collision.GetComponent<PlayerController>().GetDamage(Damage, gameObject.transform.position);
         }
     }
 
@@ -55,14 +101,46 @@ public class EnemyController : MonoBehaviour
         }
     }
 
+
     public void GetDamage(int Damage, Vector2 Pos, bool LastAttack)
     {
-        IsHurt = true;
         HP -= Damage;
 
-        if (HP < 0.0f)
+        GameObject Hud = Instantiate(HudImage);
+        Hud.GetComponent<HudText>().Alpha = Color.red;
+        Hud.GetComponent<HudText>().TargetString = Damage.ToString();
+        Hud.GetComponent<HudText>().transform.position = transform.position;
+
+        if (HP <= 0.0f)
         {
-            Destroy(gameObject);
+            /* Mosnter Dead */
+
+            IsKnockBack = true;
+
+            gameObject.GetComponent<BoxCollider2D>().enabled = false;
+            gameObject.GetComponent<Rigidbody2D>().simulated = false;
+
+            StartCoroutine(CommonFunction.FadeOut(gameObject, 0.5f, true));
+
+            if (!IsDropItem)
+            {
+                IsDropItem = true;
+
+                foreach (var item in PlayerController.Instance.AcceptQuestList)
+                {
+                    if (item.ObjectCode == EnemyCode)
+                    {
+                        item.NowTargetCount++;
+                    }
+                }
+
+                PlayerController.Instance.Gold += Gold;
+                PlayerController.Instance.Exp += Exp;
+
+                GameObject NewItem = Instantiate(Items, gameObject.transform.position, Quaternion.identity) as GameObject;
+            }
+
+            RespawnManagerInstance.MonsterList.Remove(gameObject);
         }
         else
         {
@@ -82,16 +160,17 @@ public class EnemyController : MonoBehaviour
                 StartCoroutine(KnockBack(x));
             }
 
-            StartCoroutine(AlphaBlink());
-            StartCoroutine(SetHurt());
+            if(!IsKnockBack)
+            {
+                StartCoroutine(CommonFunction.AlphaBlink(AlphaA, AlphaB, Renderer));
+            }
 ;        }
     }
+
 
     IEnumerator KnockBack(float Direction)
     {
         IsKnockBack = true;
-
-        Debug.Log(Direction);
 
         float KnockBackTime = 0.0f;
 
@@ -112,22 +191,5 @@ public class EnemyController : MonoBehaviour
         }
 
         IsKnockBack = false;
-    }
-
-    IEnumerator AlphaBlink()
-    {
-        while(IsHurt) 
-        {
-            yield return new WaitForSeconds(0.1f);
-            Renderer.color = AlphaA;
-            yield return new WaitForSeconds(0.1f);
-            Renderer.color = AlphaB;
-        }
-    }
-
-    IEnumerator SetHurt()
-    {
-        yield return new WaitForSeconds(0.3f);
-        IsHurt = false;
     }
 }

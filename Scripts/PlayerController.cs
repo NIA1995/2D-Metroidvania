@@ -9,36 +9,89 @@ using Random = System.Random;
 
 public class PlayerController : MonoBehaviour
 {
+    public static PlayerController Instance = null;
+
+    /* Added Component */
     Animator PlayerAnimator;
     Rigidbody2D RigidBody;
     SpriteRenderer Renderer;
     Collider2D MyCollider;
 
+    /* Movement Power */
     public float MovePower = 3f;
     public float JumpPower = 5f;
+    public float KnockBackPower = 2f;
 
+    /* State Bool */
     public bool IsJumping = false;
     public bool IsGrounded = true;
-    public static bool IsMoving = true;
+    public bool IsMovingEnable = true;
+    public bool IsAttack = false;
+    public bool IsHurt = false;
+    public bool IsKnockBack = false;
+    public bool IsChat = false;
 
+    /* Animation */
     float IdleBlendValue = 0.0f;
     float AnimationExitTime = 0.85f;
     float AttackBlendValue = 0.0f;
 
+    /* Attack */
     public Transform AttackPostiion;
     public Vector2 AttackBoxSize;
 
     /* Status */
+    public int Level = 1;
+    public int HP = 300;
     public int Damage = 35;
 
+    public int Exp = 0;
+    public int MaxExp = 100;
+
+    public int Gold = 0;
+
+    /* Alpha Blink Value */
+    Color AlphaA = Color.red;
+    Color AlphaB = new Color(1, 1, 1, 1);
+
+    /* Quest System */
+    public List<QuestData> AcceptQuestList;
+
+    /* Component Allocation */
     void Awake()
     {
+        if(Instance == null)
+        {
+            Instance = this;
+        }
+        else
+        {
+            Destroy(gameObject);
+        }
+
+        DontDestroyOnLoad(gameObject);
+
         PlayerAnimator = GetComponent<Animator>();
         RigidBody = GetComponent<Rigidbody2D>();
         Renderer = GetComponent<SpriteRenderer>();
         MyCollider = GetComponent<Collider2D>();
+
+        ChatData.Chat += SetChatBool;
+    }
+    
+    void SetChatBool()
+    {
+        if(!IsChat)
+        {
+            IsChat = true;
+        }
+        else
+        {
+            IsChat = false;
+        }
     }
 
+    /* Animation Function */
     IEnumerator IdleAnimationState(string AnimationName)
     {
         while (!PlayerAnimator.GetCurrentAnimatorStateInfo(0).IsName(AnimationName))
@@ -93,6 +146,7 @@ public class PlayerController : MonoBehaviour
         PlayerAnimator.SetBool(TriggerName, true);
     }
 
+    /* Attack Function */
     public void SetAttack()
     {
         StartCoroutine(ComboAttack());
@@ -124,37 +178,109 @@ public class PlayerController : MonoBehaviour
                 }
             }
 
-            if(AttackBlendValue > 2)
+            if(AttackBlendValue > 1)
             {
-                AttackBlendValue = 0;
+                AttackBlendValue = -1;
             }
         }
 
     }
 
-    bool IsAttack = false;
+    private void SetAttackPositionDirection(string Direction)
+    {
+        switch (Direction)
+        {
+            case "Left": AttackPostiion.gameObject.transform.localPosition = (new Vector3(-0.13f, -0.05f, 0f)); break;
+            case "Right": AttackPostiion.gameObject.transform.localPosition = (new Vector3(0.13f, -0.05f, 0f)); break;
+        }
+    }
 
+
+    public void GetDamage(int Damage, Vector2 Pos)
+    {
+        if(!IsHurt)
+        {
+            IsHurt = true;
+            HP -= Damage;
+
+            if (HP <= 0.0f)
+            {
+                /* GameOver */
+                Destroy(gameObject);
+            }
+            else
+            {
+                float x = transform.position.x - Pos.x;
+
+                if (x < 0)
+                {
+                    x = 1;
+                }
+                else
+                {
+                    x = -1;
+                }
+
+                StartCoroutine(KnockBack(x));
+                StartCoroutine(CommonFunction.AlphaBlink(AlphaA, AlphaB, Renderer));
+                StartCoroutine(SetHurt());
+            }
+        }
+    }
+
+    IEnumerator KnockBack(float Direction)
+    {
+        IsKnockBack = true;
+
+        float KnockBackTime = 0.0f;
+
+        while (KnockBackTime < 0.2f)
+        {
+            if (transform.rotation.y == 0)
+            {
+                transform.Translate(Vector2.left * KnockBackPower * Time.deltaTime * Direction);
+            }
+            else
+            {
+                transform.Translate(Vector2.left * KnockBackPower * Time.deltaTime * -1f * Direction);
+            }
+
+            KnockBackTime += Time.deltaTime;
+
+            yield return null;
+        }
+
+        IsKnockBack = false;
+    }
+
+    IEnumerator SetHurt()
+    {
+        yield return new WaitForSeconds(2.0f);
+        IsHurt = false;
+    }
+
+    /* Play Routine */
     void Update()
     {
         if (PlayerAnimator.GetCurrentAnimatorStateInfo(0).IsName("Attack"))
         {
             IsAttack = true;
-            IsMoving = false;
+            IsMovingEnable = false;
         }
 
         if (PlayerAnimator.GetCurrentAnimatorStateInfo(0).IsName("Idle") || PlayerAnimator.GetCurrentAnimatorStateInfo(0).IsName("Run") ||
             PlayerAnimator.GetCurrentAnimatorStateInfo(0).IsName("IdleJump") || PlayerAnimator.GetCurrentAnimatorStateInfo(0).IsName("IsRunJump"))
         {
             IsAttack = false;
-            IsMoving = true;
+            IsMovingEnable = true;
         }
 
-        if (Input.GetKeyDown(KeyCode.Z) && !IsAttack)
+        if (Input.GetKeyDown(KeyCode.Z) && !IsAttack && !IsChat)
         {
             SetAttack();
         }
 
-        if (IsMoving)
+        if (IsMovingEnable)
         {
             if(IsGrounded)
             {
@@ -199,12 +325,13 @@ public class PlayerController : MonoBehaviour
 
     private void FixedUpdate()
     {
-        if (IsMoving)
+        if (IsMovingEnable)
         {
             CharacterMovement();
             Jump();
         }
     }
+
 
     void CharacterMovement()
     {
@@ -242,9 +369,10 @@ public class PlayerController : MonoBehaviour
 
     }
 
-    void OnCollisionEnter2D(Collision2D collision)
+
+    private void OnCollisionEnter2D(Collision2D Collision)
     {
-        if (collision.gameObject.tag == "Ground")
+        if (Collision.gameObject.tag == "Ground")
         {
             IsGrounded = true;
             PlayerAnimator.SetBool("IsJump", false);
@@ -252,19 +380,30 @@ public class PlayerController : MonoBehaviour
         }
     }
 
+    private void OnTriggerStay2D(Collider2D Collision)
+    {
+        if(Collision.gameObject.tag == "Items")
+        {
+            if(Input.GetKey(KeyCode.C))
+            {
+                /* 아이템과 상호작용 추가 */
+
+                Destroy(Collision.gameObject);
+            }
+        }
+    }
+
+    void OnCollisionExit2D(Collision2D Collision)
+    {
+        if(Collision.gameObject.tag == "Ground")
+        {
+            IsGrounded = false;
+        }
+    }
+    
     private void OnDrawGizmos()
     {
         Gizmos.color = Color.red;
         Gizmos.DrawWireCube(AttackPostiion.position, AttackBoxSize);
-    }
-
-    private void SetAttackPositionDirection(string Direction)
-    {
-        switch (Direction)
-        {
-            case "Left": AttackPostiion.gameObject.transform.localPosition = (new Vector3(-0.13f, -0.05f, 0f)); break;
-            case "Right": AttackPostiion.gameObject.transform.localPosition = (new Vector3(0.13f, -0.05f, 0f)); break;
-        }
-
     }
 }
