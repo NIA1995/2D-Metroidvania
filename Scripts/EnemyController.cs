@@ -27,7 +27,7 @@ public class EnemyController : MonoBehaviour
     Color AlphaA = Color.red;
     Color AlphaB = new Color(1,1,1,1);
 
-    /* Code */
+    /* Enemy Data */
     public int EnemyCode;
     public int Exp;
     public int Gold;
@@ -36,8 +36,8 @@ public class EnemyController : MonoBehaviour
     public GameObject Items;
 
     /* Monster Event */
-    //public delegate void MonsterDead();
-    //public static event MonsterDead Dead;
+    public delegate void MonsterDead();
+    public static event MonsterDead Dead;
 
     public RespawnManager RespawnManagerInstance;
 
@@ -114,6 +114,8 @@ public class EnemyController : MonoBehaviour
         if (HP <= 0.0f)
         {
             /* Mosnter Dead */
+
+            Dead();
 
             IsKnockBack = true;
 

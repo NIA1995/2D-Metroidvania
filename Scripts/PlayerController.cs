@@ -42,8 +42,15 @@ public class PlayerController : MonoBehaviour
 
     /* Status */
     public int Level = 1;
+
     public int HP = 300;
+    public int MaxHP = 300;
+
+    public int MP = 50;
+    public int MaxMP = 50;
+
     public int Damage = 35;
+    public int LowDamage = 0;
 
     public int Exp = 0;
     public int MaxExp = 100;
@@ -56,6 +63,7 @@ public class PlayerController : MonoBehaviour
 
     /* Quest System */
     public List<QuestData> AcceptQuestList;
+
 
     /* Component Allocation */
     void Awake()
@@ -77,6 +85,7 @@ public class PlayerController : MonoBehaviour
         MyCollider = GetComponent<Collider2D>();
 
         ChatData.Chat += SetChatBool;
+        EnemyController.Dead += LevelUp;
     }
     
     void SetChatBool()
@@ -405,5 +414,27 @@ public class PlayerController : MonoBehaviour
     {
         Gizmos.color = Color.red;
         Gizmos.DrawWireCube(AttackPostiion.position, AttackBoxSize);
+    }
+
+    private bool LevelUpCheck()
+    {
+        return Exp >= MaxExp ? true : false;
+    }
+
+    private void LevelUp()
+    {
+        if(LevelUpCheck())
+        {
+            MaxExp = (int)(MaxExp * 1.75);
+            MaxHP = (int)(MaxHP * 1.1);
+            MaxMP = (int)(MaxMP * 1.1);
+
+            Exp = 0;
+            HP = MaxHP;
+            MP = MaxMP;
+
+            Level++;
+            Damage += 5;
+        }
     }
 }

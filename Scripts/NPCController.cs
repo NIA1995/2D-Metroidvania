@@ -6,15 +6,12 @@ using TMPro;
 public class NPCController : MonoBehaviour
 {
     public string Name;
-
+    public Transform TextPosition;
     public GameObject NameBoxPrefab;
 
-    public TextMeshPro NameText;
-    public Transform NameBoxSize;
+    private TextMeshPro NameText;
+    private Transform NameBoxSize;
 
-    public Transform TextPosition;
-
-    // Start is called before the first frame update
     void Start()
     {
         GameObject NameBox = Instantiate(NameBoxPrefab);
