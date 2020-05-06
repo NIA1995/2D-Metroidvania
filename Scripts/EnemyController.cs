@@ -17,11 +17,10 @@ public class EnemyController : MonoBehaviour
     /* State Bool */
     bool IsLeftSide;
     bool IsKnockBack = false;
-    bool IsDropItem = false;
 
     /* Status */
-    public int HP = 100;
-    public int Damage = 10;
+    public int HP = 3;
+    public int Damage = 1;
 
     /* Alpha Blink Value */
     Color AlphaA = Color.red;
@@ -115,7 +114,7 @@ public class EnemyController : MonoBehaviour
         {
             /* Mosnter Dead */
 
-            Dead();
+            //Dead();
 
             IsKnockBack = true;
 
@@ -124,25 +123,7 @@ public class EnemyController : MonoBehaviour
 
             StartCoroutine(CommonFunction.FadeOut(gameObject, 0.5f, true));
 
-            if (!IsDropItem)
-            {
-                IsDropItem = true;
-
-                foreach (var item in PlayerController.Instance.AcceptQuestList)
-                {
-                    if (item.ObjectCode == EnemyCode)
-                    {
-                        item.NowTargetCount++;
-                    }
-                }
-
-                PlayerController.Instance.Gold += Gold;
-                PlayerController.Instance.Exp += Exp;
-
-                GameObject NewItem = Instantiate(Items, gameObject.transform.position, Quaternion.identity) as GameObject;
-            }
-
-            RespawnManagerInstance.MonsterList.Remove(gameObject);
+            PlayerController.Instance.Gold += Gold;
         }
         else
         {

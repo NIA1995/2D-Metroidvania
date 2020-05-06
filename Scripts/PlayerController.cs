@@ -4,8 +4,9 @@ using UnityEngine;
 using System;
 using Random = System.Random;
 
-/* 20.04.19 최종 수정 */
+/* 20.05.05 최종 수정 */
 /* IsGrounded 수정이 필요함, 높은 곳에서 떨어질 때 IsGrounded는 여전히 True임 */
+/* ComboAttack 함수에서 마지막 공격 넉백 기능 함수를 분리해주는게 좋을까? */
 
 public class PlayerController : MonoBehaviour
 {
@@ -30,30 +31,23 @@ public class PlayerController : MonoBehaviour
     public bool IsHurt = false;
     public bool IsKnockBack = false;
     public bool IsChat = false;
+    public bool IsLeft = false;
+    public bool IsLadder = false;
 
     /* Animation */
     float IdleBlendValue = 0.0f;
     float AnimationExitTime = 0.85f;
     float AttackBlendValue = 0.0f;
 
-    /* Attack */
+    /* Attack Collider */
     public Transform AttackPostiion;
     public Vector2 AttackBoxSize;
 
     /* Status */
-    public int Level = 1;
+    public int HP = 5;
+    public int MaxHP = 5;
 
-    public int HP = 300;
-    public int MaxHP = 300;
-
-    public int MP = 50;
-    public int MaxMP = 50;
-
-    public int Damage = 35;
-    public int LowDamage = 0;
-
-    public int Exp = 0;
-    public int MaxExp = 100;
+    public int Damage = 2;
 
     public int Gold = 0;
 
@@ -62,7 +56,10 @@ public class PlayerController : MonoBehaviour
     Color AlphaB = new Color(1, 1, 1, 1);
 
     /* Quest System */
-    public List<QuestData> AcceptQuestList;
+    public List<QuestSystem> AcceptQuestList;
+
+    /* Used Prefabs */
+    public GameObject ArrowPrefab;
 
 
     /* Component Allocation */
@@ -83,9 +80,6 @@ public class PlayerController : MonoBehaviour
         RigidBody = GetComponent<Rigidbody2D>();
         Renderer = GetComponent<SpriteRenderer>();
         MyCollider = GetComponent<Collider2D>();
-
-        ChatData.Chat += SetChatBool;
-        EnemyController.Dead += LevelUp;
     }
     
     void SetChatBool()
@@ -145,8 +139,14 @@ public class PlayerController : MonoBehaviour
         }
 
         /* 애니메이션 완료 후 실행되는 부분 */
-        PlayerAnimator.SetBool("IsHit", false);
-        AttackBlendValue++;
+        PlayerAnimator.SetBool(AnimationName, false);
+
+        if(AnimationName == "Attack")
+        {
+            AttackBlendValue++;
+        }
+
+        Invoke(AnimationName, 0f);
     }
 
     public void PlayBlendAnimation(float BlendNumber, string BlendName, string TriggerName)
@@ -156,18 +156,13 @@ public class PlayerController : MonoBehaviour
     }
 
     /* Attack Function */
-    public void SetAttack()
-    {
-        StartCoroutine(ComboAttack());
-    }
-
     IEnumerator ComboAttack()
     {
         yield return null;
 
         if(!PlayerAnimator.GetCurrentAnimatorStateInfo(0).IsName("Attack"))
         {
-            PlayBlendAnimation(AttackBlendValue, "AttackBlendValue", "IsHit");
+            PlayBlendAnimation(AttackBlendValue, "AttackBlendValue", "Attack");
             StartCoroutine(AttackAnimationState("Attack"));
 
             Collider2D[] Colliders = Physics2D.OverlapBoxAll(AttackPostiion.position, AttackBoxSize, 0);
@@ -194,6 +189,7 @@ public class PlayerController : MonoBehaviour
         }
 
     }
+    
 
     private void SetAttackPositionDirection(string Direction)
     {
@@ -210,6 +206,7 @@ public class PlayerController : MonoBehaviour
         if(!IsHurt)
         {
             IsHurt = true;
+
             HP -= Damage;
 
             if (HP <= 0.0f)
@@ -219,18 +216,18 @@ public class PlayerController : MonoBehaviour
             }
             else
             {
-                float x = transform.position.x - Pos.x;
+                float Dircetion = transform.position.x - Pos.x;
 
-                if (x < 0)
+                if (Dircetion < 0)
                 {
-                    x = 1;
+                    Dircetion = 1;
                 }
                 else
                 {
-                    x = -1;
+                    Dircetion = -1;
                 }
 
-                StartCoroutine(KnockBack(x));
+                StartCoroutine(KnockBack(Dircetion));
                 StartCoroutine(CommonFunction.AlphaBlink(AlphaA, AlphaB, Renderer));
                 StartCoroutine(SetHurt());
             }
@@ -270,8 +267,86 @@ public class PlayerController : MonoBehaviour
 
     /* Play Routine */
     void Update()
-    {
-        if (PlayerAnimator.GetCurrentAnimatorStateInfo(0).IsName("Attack"))
+    {   
+        if (IsMovingEnable)
+        {
+            /* 사다리 타기 */
+            if (IsLadder)
+            {
+                RigidBody.gravityScale = 0;
+
+                if (Input.GetAxisRaw("Horizontal") == 0)
+                {
+                    PlayerAnimator.SetInteger("IsRunning", 0);
+                }
+
+                if (Input.GetAxisRaw("Vertical") > 0)
+                {
+                    transform.position += Vector3.up * MovePower * Time.deltaTime;
+                }
+                else if (Input.GetAxisRaw("Vertical") < 0)
+                {
+                    transform.position += Vector3.down * MovePower * Time.deltaTime;
+                }
+            }
+            else if (!IsLadder)
+            {
+                RigidBody.gravityScale = 1;
+            }
+
+            if (IsGrounded)
+            {
+                /* 구르기 */
+                if(Input.GetKeyDown(KeyCode.Q))
+                {
+                    PlayerAnimator.SetBool("Slide", true);
+
+                    MovePower = 5f;
+
+                    Physics2D.IgnoreLayerCollision(LayerMask.NameToLayer("Player"), LayerMask.NameToLayer("Enemy"), true);
+
+                    StartCoroutine(AttackAnimationState("Slide"));
+                }
+
+                /* 점프 */
+                if(Input.GetKeyDown(KeyCode.X))
+                {
+                    IsJumping = true;
+                    Jump();
+
+                    if (PlayerAnimator.GetCurrentAnimatorStateInfo(0).IsName("Idle"))
+                    {
+                        PlayerAnimator.SetBool("IsJump", true);
+                    }
+                    else if(PlayerAnimator.GetCurrentAnimatorStateInfo(0).IsName("Run"))
+                    {
+                        PlayerAnimator.SetBool("IsRunJump", true);
+                    }
+                }
+
+                /* 원거리 공격 */
+                if (Input.GetKeyDown(KeyCode.D) && !IsAttack && !IsChat)
+                {
+                    if (IsLeft && !IsAttack)
+                    {
+                        PlayerAnimator.SetBool("Arrow", true);
+
+                        StartCoroutine(NewArrow(transform.position, -1, 10, 0.25f));
+                    }
+                    else if (!IsLeft && !IsAttack)
+                    {
+                        PlayerAnimator.SetBool("Arrow", true);
+
+                        StartCoroutine(NewArrow(transform.position, 1, 10, 0.25f));
+                    }
+
+                    StartCoroutine(AttackAnimationState("Arrow"));
+                }
+            }           
+        }
+
+        /* 상태 체크 후 Bool 값 변경 */
+        if (PlayerAnimator.GetCurrentAnimatorStateInfo(0).IsName("Attack") || PlayerAnimator.GetCurrentAnimatorStateInfo(0).IsName("Arrow"))
         {
             IsAttack = true;
             IsMovingEnable = false;
@@ -284,51 +359,10 @@ public class PlayerController : MonoBehaviour
             IsMovingEnable = true;
         }
 
+        /* 근접 공격 */
         if (Input.GetKeyDown(KeyCode.Z) && !IsAttack && !IsChat)
         {
-            SetAttack();
-        }
-
-        if (IsMovingEnable)
-        {
-            if(IsGrounded)
-            {
-                if (Input.GetAxisRaw("Horizontal") == 0)
-                {
-                    PlayerAnimator.SetInteger("IsRunning", 0);
-
-                    if (!PlayerAnimator.GetCurrentAnimatorStateInfo(0).IsName("Idle"))
-                    {
-                        StartCoroutine(IdleAnimationState("Idle"));
-                    }
-                }
-                else if (Input.GetAxisRaw("Horizontal") < 0)
-                {
-                    PlayerAnimator.SetInteger("IsRunning", 1);
-                    AttackBlendValue = 0;
-                    SetAttackPositionDirection("Left");
-                }
-                else if (Input.GetAxisRaw("Horizontal") > 0)
-                {
-                    PlayerAnimator.SetInteger("IsRunning", 1);
-                    AttackBlendValue = 0;
-                    SetAttackPositionDirection("Right");
-                }
-
-                if (Input.GetKeyDown(KeyCode.X) && PlayerAnimator.GetCurrentAnimatorStateInfo(0).IsName("Idle"))
-                {
-                    IsJumping = true;
-                    Jump();
-                    PlayerAnimator.SetBool("IsJump", true);
-                }
-
-                if (Input.GetKeyDown(KeyCode.X) && PlayerAnimator.GetCurrentAnimatorStateInfo(0).IsName("Run"))
-                {
-                    IsJumping = true;
-                    Jump();
-                    PlayerAnimator.SetBool("IsRunJump", true);
-                }
-            }           
+            StartCoroutine(ComboAttack());
         }
     }
 
@@ -344,22 +378,50 @@ public class PlayerController : MonoBehaviour
 
     void CharacterMovement()
     {
-        Vector3 MoveVelocity = Vector3.zero;
-
-        if (Input.GetAxisRaw("Horizontal") < 0)
+        if(!IsLadder)
         {
-            MoveVelocity = Vector3.left;
-            Renderer.flipX = true;
+            Vector3 MoveVelocity = Vector3.zero;
 
-        }
-        else if (Input.GetAxisRaw("Horizontal") > 0)
-        {
-            MoveVelocity = Vector3.right;
-            Renderer.flipX = false;
+            if (Input.GetAxisRaw("Horizontal") < 0)
+            {
+                MoveVelocity = Vector3.left;
+                Renderer.flipX = true;
 
-        }
+            }
+            else if (Input.GetAxisRaw("Horizontal") > 0)
+            {
+                MoveVelocity = Vector3.right;
+                Renderer.flipX = false;
 
-        transform.position += MoveVelocity * MovePower * Time.deltaTime;
+            }
+
+            /* 좌우 이동 */
+            if (Input.GetAxisRaw("Horizontal") == 0)
+            {
+                PlayerAnimator.SetInteger("IsRunning", 0);
+
+                if (!PlayerAnimator.GetCurrentAnimatorStateInfo(0).IsName("Idle"))
+                {
+                    StartCoroutine(IdleAnimationState("Idle"));
+                }
+            }
+            else if (Input.GetAxisRaw("Horizontal") < 0)
+            {
+                PlayerAnimator.SetInteger("IsRunning", 1);
+                AttackBlendValue = 0;
+                SetAttackPositionDirection("Left");
+                IsLeft = true;
+            }
+            else if (Input.GetAxisRaw("Horizontal") > 0)
+            {
+                PlayerAnimator.SetInteger("IsRunning", 1);
+                AttackBlendValue = 0;
+                SetAttackPositionDirection("Right");
+                IsLeft = false;
+            }
+
+            transform.position += MoveVelocity * MovePower * Time.deltaTime;
+        }     
     }
 
     void Jump()
@@ -378,6 +440,12 @@ public class PlayerController : MonoBehaviour
 
     }
 
+    void Slide()
+    {
+        MovePower = 3f;
+
+        Physics2D.IgnoreLayerCollision(LayerMask.NameToLayer("Player"), LayerMask.NameToLayer("Enemy"), false);
+    }
 
     private void OnCollisionEnter2D(Collision2D Collision)
     {
@@ -393,11 +461,14 @@ public class PlayerController : MonoBehaviour
     {
         if(Collision.gameObject.tag == "Items")
         {
-            if(Input.GetKey(KeyCode.C))
-            {
-                /* 아이템과 상호작용 추가 */
 
-                Destroy(Collision.gameObject);
+        }
+
+        if (Collision.CompareTag("Ladder"))
+        {
+            if (Input.GetAxisRaw("Vertical") != 0)
+            {
+                IsLadder = true;
             }
         }
     }
@@ -416,25 +487,29 @@ public class PlayerController : MonoBehaviour
         Gizmos.DrawWireCube(AttackPostiion.position, AttackBoxSize);
     }
 
-    private bool LevelUpCheck()
+    IEnumerator NewArrow(Vector3 StartPos, int Direction, int Power, float WaitTime)
     {
-        return Exp >= MaxExp ? true : false;
+        yield return new WaitForSeconds(WaitTime);
+
+        GameObject NewArrow = Instantiate(ArrowPrefab);
+        NewArrow.GetComponent<Arrow>().Set(StartPos, Direction, Power);
     }
 
-    private void LevelUp()
+    private void OnTriggerExit2D(Collider2D Collision)
     {
-        if(LevelUpCheck())
+        if(Collision.CompareTag("Ladder"))
         {
-            MaxExp = (int)(MaxExp * 1.75);
-            MaxHP = (int)(MaxHP * 1.1);
-            MaxMP = (int)(MaxMP * 1.1);
-
-            Exp = 0;
-            HP = MaxHP;
-            MP = MaxMP;
-
-            Level++;
-            Damage += 5;
+            IsLadder = false;
         }
+    }
+
+    private void Attack()
+    {
+
+    }
+
+    private void Arrow()
+    {
+
     }
 }

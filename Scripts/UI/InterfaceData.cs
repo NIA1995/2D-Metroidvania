@@ -19,30 +19,30 @@ public class InterfaceData : MonoBehaviour
 
         Group.alpha = 1;
 
-        LevelText.text = "LV." + PlayerController.Instance.Level;
+        //LevelText.text = "LV." + PlayerController.Instance.Level;
 
         HPSlider.maxValue = PlayerController.Instance.MaxHP;
-        MPSlider.maxValue = PlayerController.Instance.MaxMP;
-        EXPSlider.maxValue = PlayerController.Instance.MaxExp;
+        //MPSlider.maxValue = PlayerController.Instance.MaxMP;
+        //EXPSlider.maxValue = PlayerController.Instance.MaxExp;
     }
 
     private void Update()
     {
         HPSlider.value = PlayerController.Instance.HP;
-        MPSlider.value = PlayerController.Instance.MP;
-        EXPSlider.value = PlayerController.Instance.Exp;
+        //MPSlider.value = PlayerController.Instance.MP;
+        //EXPSlider.value = PlayerController.Instance.Exp;
     }
 
     private void UIRefresh()
     {
-        LevelText.text = "LV." + PlayerController.Instance.Level;
+        //LevelText.text = "LV." + PlayerController.Instance.Level;
 
         HPSlider.value = PlayerController.Instance.HP;
-        MPSlider.value = PlayerController.Instance.MP;
-        EXPSlider.value = PlayerController.Instance.Exp;
+        //MPSlider.value = PlayerController.Instance.MP;
+        //EXPSlider.value = PlayerController.Instance.Exp;
 
         HPSlider.maxValue = PlayerController.Instance.MaxHP;
-        MPSlider.maxValue = PlayerController.Instance.MaxMP;
-        EXPSlider.maxValue = PlayerController.Instance.MaxExp;
+        //MPSlider.maxValue = PlayerController.Instance.MaxMP;
+        //EXPSlider.maxValue = PlayerController.Instance.MaxExp;
     }
 }
